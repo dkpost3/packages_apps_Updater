@@ -85,10 +85,13 @@ public class Utils {
         update.setFileSize(object.getLong("size"));
         update.setDownloadUrl(object.getString("download"));
         update.setVersion(object.getString("version"));
-        mMaintainer = object.getString("maintainer");
-        mForum = object.getString("forum");
-        mFirmware = object.getString("firmware");
-        mPaypal = object.getString("paypal");
+        update.setChangelog(object.optString("changelog", ""));
+        update.setAndroidVersion(object.optString("android_version", ""));
+        update.setSecurityPatch(object.optString("security_patch", ""));
+        mMaintainer = object.optString("maintainer", "");
+        mForum = object.optString("forum", "");
+        mFirmware = object.optString("firmware", "");
+        mPaypal = object.optString("paypal", "");
         return update;
     }
 

@@ -51,6 +51,7 @@ import com.google.android.material.snackbar.Snackbar;
 
 import org.evolution.updater.controller.UpdaterController;
 import org.evolution.updater.controller.UpdaterService;
+import org.evolution.updater.misc.ChangelogUtils;
 import org.evolution.updater.misc.Constants;
 import org.evolution.updater.misc.StringGenerator;
 import org.evolution.updater.misc.Utils;
@@ -101,6 +102,10 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
         private final TextView mBuildDate;
         private final TextView mBuildVersion;
         private final TextView mBuildSize;
+        private final LinearLayout mMetaContainer;
+        private final TextView mAndroidVersionChip;
+        private final TextView mSecurityPatchChip;
+        private final TextView mChangelogPreview;
 
         private final LinearLayout mProgress;
         private final ProgressBar mProgressBar;
@@ -115,6 +120,10 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
             mBuildDate = view.findViewById(R.id.build_date);
             mBuildVersion = view.findViewById(R.id.build_version);
             mBuildSize = view.findViewById(R.id.build_size);
+            mMetaContainer = view.findViewById(R.id.update_meta_container);
+            mAndroidVersionChip = view.findViewById(R.id.android_version_chip);
+            mSecurityPatchChip = view.findViewById(R.id.security_patch_chip);
+            mChangelogPreview = view.findViewById(R.id.changelog_preview);
 
             mProgress = view.findViewById(R.id.progress);
             mProgressBar = view.findViewById(R.id.progress_bar);
@@ -209,6 +218,11 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
         }
 
         viewHolder.mMenu.setOnClickListener(getClickListener(update, canDelete, viewHolder.mMenu));
+        viewHolder.mChangelogPreview.setOnClickListener(v -> {
+            if (update.getChangelog() != null && !update.getChangelog().isBlank()) {
+                mActivity.showChangelogDialog(update);
+            }
+        });
         viewHolder.mProgress.setVisibility(View.VISIBLE);
         viewHolder.mProgressText.setVisibility(View.VISIBLE);
         viewHolder.mBuildSize.setVisibility(View.INVISIBLE);
@@ -232,7 +246,7 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
             setButtonAction(viewHolder.mAction, Action.DOWNLOAD, downloadId, !isBusy());
         }
         String fileSize = Formatter.formatShortFileSize(mActivity, update.getFileSize());
-        viewHolder.mBuildSize.setText(fileSize);
+        viewHolder.mBuildSize.setText(mActivity.getString(R.string.update_card_build_size, fileSize));
 
         viewHolder.mProgress.setVisibility(View.INVISIBLE);
         viewHolder.mProgressText.setVisibility(View.INVISIBLE);
@@ -279,6 +293,31 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
         viewHolder.mBuildDate.setText(buildDate);
         viewHolder.mBuildVersion.setText(buildVersion);
         viewHolder.mBuildVersion.setCompoundDrawables(null, null, null, null);
+
+        boolean hasAndroidVersion = update.getAndroidVersion() != null
+                && !update.getAndroidVersion().isBlank();
+        boolean hasSecurityPatch = update.getSecurityPatch() != null
+                && !update.getSecurityPatch().isBlank();
+        viewHolder.mMetaContainer.setVisibility(hasAndroidVersion || hasSecurityPatch
+                ? View.VISIBLE : View.GONE);
+        viewHolder.mAndroidVersionChip.setVisibility(hasAndroidVersion ? View.VISIBLE : View.GONE);
+        viewHolder.mSecurityPatchChip.setVisibility(hasSecurityPatch ? View.VISIBLE : View.GONE);
+        if (hasAndroidVersion) {
+            viewHolder.mAndroidVersionChip.setText(mActivity.getString(
+                    R.string.update_android_version, update.getAndroidVersion()));
+        }
+        if (hasSecurityPatch) {
+            viewHolder.mSecurityPatchChip.setText(mActivity.getString(
+                    R.string.update_security_patch, update.getSecurityPatch()));
+        }
+
+        String changelogPreview = ChangelogUtils.buildPreview(update.getChangelog());
+        if (changelogPreview.isEmpty() || ChangelogUtils.isUrl(update.getChangelog())) {
+            viewHolder.mChangelogPreview.setVisibility(View.GONE);
+        } else {
+            viewHolder.mChangelogPreview.setVisibility(View.VISIBLE);
+            viewHolder.mChangelogPreview.setText(changelogPreview);
+        }
 
         if (activeLayout) {
             handleActiveStatus(viewHolder, update);
@@ -554,10 +593,15 @@ public class UpdatesListAdapter extends RecyclerView.Adapter<UpdatesListAdapter.
         menu.findItem(R.id.menu_delete_action).setVisible(shouldShowDelete);
         menu.findItem(R.id.menu_copy_url).setVisible(update.getAvailableOnline());
         menu.findItem(R.id.menu_export_update).setVisible(isVerified);
+        menu.findItem(R.id.menu_show_update_changelog).setVisible(update.getChangelog() != null
+                && !update.getChangelog().isBlank());
 
         popupMenu.setOnMenuItemClickListener(item -> {
             int itemId = item.getItemId();
-            if (itemId == R.id.menu_delete_action) {
+            if (itemId == R.id.menu_show_update_changelog) {
+                mActivity.showChangelogDialog(update);
+                return true;
+            } else if (itemId == R.id.menu_delete_action) {
                 getDeleteDialog(update.getDownloadId()).show();
                 return true;
             } else if (itemId == R.id.menu_copy_url) {

@@ -24,6 +24,9 @@ public class UpdateBase implements UpdateBaseInfo {
     private String mType;
     private String mVersion;
     private long mFileSize;
+    private String mChangelog;
+    private String mAndroidVersion;
+    private String mSecurityPatch;
 
     public UpdateBase() {
     }
@@ -36,6 +39,9 @@ public class UpdateBase implements UpdateBaseInfo {
         mType = update.getType();
         mVersion = update.getVersion();
         mFileSize = update.getFileSize();
+        mChangelog = update.getChangelog();
+        mAndroidVersion = update.getAndroidVersion();
+        mSecurityPatch = update.getSecurityPatch();
     }
 
     @Override
@@ -99,5 +105,32 @@ public class UpdateBase implements UpdateBaseInfo {
 
     public void setFileSize(long fileSize) {
         mFileSize = fileSize;
+    }
+
+    @Override
+    public String getChangelog() {
+        return mChangelog;
+    }
+
+    public void setChangelog(String changelog) {
+        mChangelog = changelog;
+    }
+
+    @Override
+    public String getAndroidVersion() {
+        return mAndroidVersion;
+    }
+
+    public void setAndroidVersion(String androidVersion) {
+        mAndroidVersion = androidVersion;
+    }
+
+    @Override
+    public String getSecurityPatch() {
+        return mSecurityPatch;
+    }
+
+    public void setSecurityPatch(String securityPatch) {
+        mSecurityPatch = securityPatch;
     }
 }

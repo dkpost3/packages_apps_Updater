@@ -72,14 +72,19 @@ import org.evolution.updater.controller.UpdaterController;
 import org.evolution.updater.controller.UpdaterService;
 import org.evolution.updater.download.DownloadClient;
 import org.evolution.updater.misc.BuildInfoUtils;
+import org.evolution.updater.misc.ChangelogUtils;
 import org.evolution.updater.misc.Constants;
 import org.evolution.updater.misc.StringGenerator;
 import org.evolution.updater.misc.Utils;
 import org.evolution.updater.model.Update;
 import org.evolution.updater.model.UpdateInfo;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.HttpURLConnection;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -136,6 +141,7 @@ public class UpdatesActivity extends UpdatesListActivity implements UpdateImport
         mBroadcastReceiver = new BroadcastReceiver() {
             @Override
             public void onReceive(Context context, Intent intent) {
+
                 if (UpdaterController.ACTION_UPDATE_STATUS.equals(intent.getAction())) {
                     String downloadId = intent.getStringExtra(UpdaterController.EXTRA_DOWNLOAD_ID);
                     handleDownloadStatusChange(downloadId);
@@ -275,9 +281,7 @@ public class UpdatesActivity extends UpdatesListActivity implements UpdateImport
             showPreferencesDialog();
             return true;
         } else if (itemId == R.id.menu_show_changelog) {
-            Intent openUrl = new Intent(Intent.ACTION_VIEW,
-                    Uri.parse(Utils.getChangelogURL(this)));
-            startActivity(openUrl);
+            showChangelogDialog(null);
             return true;
         } else if (itemId == R.id.menu_local_update) {
             mUpdateImporter.openImportPicker();
@@ -562,6 +566,92 @@ public class UpdatesActivity extends UpdatesListActivity implements UpdateImport
                     startActivity(intent);
                     }
             });
+        }
+    }
+
+    @Override
+    public void showChangelogDialog(@Nullable UpdateInfo update) {
+        String rawChangelog = update != null ? update.getChangelog() : Utils.getChangelogURL(this);
+        if (rawChangelog == null || rawChangelog.trim().isEmpty()) {
+            showSnackbar(R.string.menu_show_changelog_empty, Snackbar.LENGTH_LONG);
+            return;
+        }
+
+        String subtitle = update == null ? getString(R.string.display_name) :
+                getString(R.string.list_build_version, update.getVersion());
+        if (!ChangelogUtils.isUrl(rawChangelog)) {
+            showChangelogContentDialog(subtitle, rawChangelog);
+            return;
+        }
+
+        AlertDialog loadingDialog = new AlertDialog.Builder(this)
+                .setTitle(R.string.menu_show_changelog)
+                .setView(R.layout.progress_dialog)
+                .setMessage(R.string.menu_show_changelog_loading)
+                .setCancelable(false)
+                .create();
+        loadingDialog.show();
+
+        new Thread(() -> {
+            try {
+                String body = downloadText(rawChangelog);
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        loadingDialog.dismiss();
+                        showChangelogContentDialog(subtitle, body);
+                    }
+                });
+            } catch (IOException e) {
+                Log.e(TAG, "Could not load changelog", e);
+                runOnUiThread(() -> {
+                    if (!isFinishing() && !isDestroyed()) {
+                        loadingDialog.dismiss();
+                        showSnackbar(R.string.menu_show_changelog_failed, Snackbar.LENGTH_LONG);
+                        Intent openUrl = new Intent(Intent.ACTION_VIEW, Uri.parse(rawChangelog));
+                        startActivity(openUrl);
+                    }
+                });
+            }
+        }).start();
+    }
+
+    private void showChangelogContentDialog(String subtitle, String body) {
+        if (body == null || body.trim().isEmpty()) {
+            showSnackbar(R.string.menu_show_changelog_empty, Snackbar.LENGTH_LONG);
+            return;
+        }
+
+        View dialogView = LayoutInflater.from(this).inflate(R.layout.dialog_changelog, null);
+        TextView subtitleView = dialogView.findViewById(R.id.changelog_subtitle);
+        TextView bodyView = dialogView.findViewById(R.id.changelog_body);
+        if (subtitle != null && !subtitle.isEmpty()) {
+            subtitleView.setVisibility(View.VISIBLE);
+            subtitleView.setText(subtitle);
+        }
+        bodyView.setText(ChangelogUtils.buildStyledChangelog(body));
+
+        new AlertDialog.Builder(this)
+                .setTitle(R.string.update_changelog_title)
+                .setView(dialogView)
+                .setPositiveButton(android.R.string.ok, null)
+                .show();
+    }
+
+    private String downloadText(String url) throws IOException {
+        HttpURLConnection connection = (HttpURLConnection) new URL(url).openConnection();
+        connection.setConnectTimeout(10000);
+        connection.setReadTimeout(15000);
+        connection.setRequestProperty("Accept", "text/plain,text/markdown,text/*,*/*");
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(connection.getInputStream()))) {
+            StringBuilder sb = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                sb.append(line).append('\n');
+            }
+            return sb.toString().trim();
+        } finally {
+            connection.disconnect();
         }
     }
 
